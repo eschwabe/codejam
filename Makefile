@@ -4,7 +4,7 @@ PROGS =2014/qual-a
 PROGS+=2014/qual-b
 
 CXX=g++
-CXXFLAGS=-Wall -Werror -std=c++11
+CXXFLAGS=-Wall -Werror -std=c++11 -g -O0
 
 .PRONY: all clean check
 
