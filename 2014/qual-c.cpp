@@ -21,47 +21,66 @@ std::stringstream ReadLine() {
     return std::stringstream(tmp);
 }
 
-// count the number of adjacent free and mine cells
-std::tuple<int, int> CountAdjacent(
+// print puzzle contents
+// assume that grid position 0,0 was clicked
+void PrintPuzzle(Puzzle& grid) {
+    auto clicked = false;
+    for(auto row : grid) {
+        for(auto cell : row) {
+            if(!clicked) {
+                std::cout << "c";
+                clicked = true;
+            }
+            else if(cell == MINE) {
+                std::cout << "*";
+            }
+            else {
+                std::cout << ".";
+            }
+        }
+        std::cout << std::endl;
+    }
+}
+
+// remove mine on grid and update stats
+void RemoveMine(
         int row,
         int col,
-        Puzzle& grid) {
+        Puzzle& grid,
+        int* free_cells) {
 
     auto rows = static_cast<int>(grid.size());
     auto cols = static_cast<int>(grid[0].size());
-    int mine_cells = 0;
-    int free_cells = 0;
 
+    grid[row][col] = 0;
+    (*free_cells)--;
+
+    // compute number of mines surrounding cell and decrease mine count on surrounding cells
     for(int r = std::max(row-1,0); r <= std::min(row+1, rows-1); ++r) {
         for(int c = std::max(col-1,0); c <= std::min(col+1, cols-1); ++c) {
-            if(r == row && c == col) {
-                continue;
-            } else if(grid[r][c] == MINE) {
-                mine_cells++;
-            } else if(grid[r][c] != MINE) {
-                free_cells++;
+            if(grid[r][c] == MINE) {
+                grid[row][col]++;
+            } else if(r != row || c != col) {
+                grid[r][c]--;
             }
         }
     }
-
-    return std::make_tuple(free_cells, mine_cells);
 }
 
-// place new mine on grid and update stats
-void PlaceMine(
+// remove mines adjacent to cell
+void RemoveAdjacentMines(
         int row,
         int col,
-        Puzzle& grid) {
+        Puzzle& grid,
+        int* free_cells) {
 
     auto rows = static_cast<int>(grid.size());
     auto cols = static_cast<int>(grid[0].size());
 
     for(int r = std::max(row-1,0); r <= std::min(row+1, rows-1); ++r) {
         for(int c = std::max(col-1,0); c <= std::min(col+1, cols-1); ++c) {
-            if(r == row && c == col) {
-                grid[row][col] = MINE;
-            } else if(grid[r][c] != MINE) {
-                grid[r][c]++;
+            if(grid[r][c] == MINE) {
+                RemoveMine(r, c, grid, free_cells);
             }
         }
     }
@@ -69,98 +88,58 @@ void PlaceMine(
 
 // solve minesweeper puzzle
 // return true if solvable, false if not solvable
-void GeneratePuzzle(int mines, Puzzle& grid) {
+bool GeneratePuzzle(int mines, Puzzle& grid) {
 
     auto rows = static_cast<int>(grid.size());
     auto cols = static_cast<int>(grid[0].size());
 
-    int last_mine_row = 0;
-    int last_mine_col = 0;
-
-    int base_row = 0;
-    int base_col = 0;
-
-    for(int m = 0; m < mines; ++m) {
-
-        if( rows-base_row > cols-base_col ) {
-            // traverse columns
-            PlaceMine(last_mine_row, last_mine_col, grid);
-            last_mine_col++;
-            if(last_mine_col >= cols) {
-                base_row++;
-                last_mine_row = base_row;
-                last_mine_col = base_col;
-            }
-        } else {
-            // traverse rows
-            PlaceMine(last_mine_row, last_mine_col, grid);
-            last_mine_row++;
-            if(last_mine_row >= rows) {
-                base_col++;
-                last_mine_row = base_row;
-                last_mine_col = base_col;
-            }
-        }
-    }
-
-}
-
-// check if puzzle solvable in a single click
-bool TestPuzzle(int mines, Puzzle& grid) {
-
+    int free_cells = (rows*cols) - mines;
     bool solvable = true;
-    auto rows = static_cast<int>(grid.size());
-    auto cols = static_cast<int>(grid[0].size());
 
-    // check if only a single mine
-    if(rows*cols != mines+1) {
+    // remove mine from initial position
+    RemoveMine(0, 0, grid, &free_cells);
 
-        // check each cell
+    while(free_cells > 0) {
+
+        int target_row = -1;
+        int target_col = -1;
+        int adjacent_mines = 9;
+        bool found = false;
+
         for(int row = 0; row < rows; ++row) {
             for(int col = 0; col < cols; ++col) {
+                if(grid[row][col] != MINE) {
+                    // if remaining free cells matches adjacent mines, remove mines
+                    if(grid[row][col] == free_cells) {
+                        target_row = row;
+                        target_col = col;
+                        adjacent_mines = grid[row][col];
+                        found = true;
+                        break;
+                    } 
 
-                if( grid[row][col] != MINE ) {
-                    solvable = false;
-                    // test if cell has an adjacent cell with no surrounding mines
-                    for(int r = std::max(row-1,0); r <= std::min(row+1, rows-1); ++r) {
-                        for(int c = std::max(col-1,0); c <= std::min(col+1, cols-1); ++c) {
-                            if(grid[r][c] == 0) {
-                                solvable = true;
-                            }
-                        }
-                    }
-
-                    // puzzle not solvable if any cell not next to 0 free cell
-                    if(!solvable) {
-                        return solvable;
+                    // if cell has lowest number of adjacent mines, set as target
+                    else if(grid[row][col] > 0 && grid[row][col] < adjacent_mines) {
+                        target_row = row;
+                        target_col = col;
+                        adjacent_mines = grid[row][col];
                     }
                 }
             }
+            if(found) break;
+        }
+
+        // if not enough free cells to clear all adjacent mines, puzzle not solvable
+        if(adjacent_mines > free_cells) {
+            solvable = false;
+            break;
+        } else {
+            RemoveAdjacentMines(target_row, target_col, grid, &free_cells);
         }
 
     }
 
     return solvable;
-}
-
-// print puzzle contents
-void PrintPuzzle(Puzzle& grid) {
-    auto clicked = false;
-    for(auto row : grid) {
-        for(auto cell : row) {
-            if(cell == MINE) {
-                std::cout << "*";
-            } else if(cell == 0 && !clicked) {
-                std::cout << "c";
-                clicked = true;
-            }
-            else {
-                //std::cout << ".";
-                std::cout << cell;
-            }
-        }
-        std::cout << std::endl;
-    }
 }
 
 int main()
@@ -176,18 +155,15 @@ int main()
         line >> rows >> cols >> mines;
 
         // initialize grid with free cells and clicked cell
-        auto grid = Puzzle(rows, std::vector<int>(cols, 0));
+        auto grid = Puzzle(rows, std::vector<int>(cols, MINE));
 
         // solve puzzle
-        GeneratePuzzle(mines, grid);
-        bool result = TestPuzzle(mines, grid);
+        bool result = GeneratePuzzle(mines, grid);
         std::cout << "Case #" << test << ":" << std::endl;
         if(result) {
-            std::cout << "Solved" << std::endl;
             PrintPuzzle(grid);
         } else {
             std::cout << "Impossible" << std::endl;
-            PrintPuzzle(grid);
         }
 
     }
