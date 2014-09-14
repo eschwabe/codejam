@@ -1,6 +1,10 @@
 // Problem C. Minesweeper Master
 // https://code.google.com/codejam/contest/2974486/dashboard#s=p2
 
+// TODO: 
+// dynamically allocate array (two arrays?)
+// keep track of adajacent ce
+
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -15,110 +19,94 @@ enum CellType {
     MINE,
 };
 
+// read a line from stdin
 std::stringstream ReadLine() {
     std::string tmp;
     std::getline(std::cin, tmp);
     return std::stringstream(tmp);
 }
 
-// count the number of mines adajacent to a free cell
-int CountAdjacentMines(
+// count the number of adjacent mines and free cells
+std::tuple<int, int> CountAdjacent(
         int rows,
         int cols,
         int row,
         int col,
-        int grid[kMaxDimension][kMaxDimension],
-        int* mine_row,
-        int* mine_col) {
+        int grid[kMaxDimension][kMaxDimension]) {
 
-    int adjacent = 0;
+    int mine_cells = 0;
+    int free_cells = 0;
 
     for(int r = std::max(row-1,0); r <= std::min(row+1, rows-1); ++r) {
         for(int c = std::max(col-1,0); c <= std::min(col+1, cols-1); ++c) {
             if(r == row && c == col) {
                 continue;
             } else if(grid[r][c] == MINE) {
-                adjacent++;
-                *mine_row = r;
-                *mine_col = c;
+                mine_cells++;
+            } else if(grid[r][c] == FREE) {
+                free_cells++;
             }
         }
     }
 
-    return adjacent;
+    return std::tuple<int, int>(free_cells, mine_cells);
 }
 
 // solve minesweeper puzzle
 // return true if solvable, false if not solvable
 bool SolvePuzzle(int rows, int cols, int mines, int grid[kMaxDimension][kMaxDimension]) {
 
-    int num_free_cells = (rows*cols) - mines;
-    bool solvable = false;
+    for(int m = 0; m < mines; ++m) {
 
-    for(int i = 0; i < num_free_cells; ++i) {
-
-        // iniitalize first cell as clicked
-        if(i == 0) {
-            grid[0][0] = CLICK;
-            solvable = true;
-            continue;
-        }
-
-        // scan for mine with shortest distance to click
-        //  or mine with only a single adjacent free cell
-        int found = false;
-        int row_to_free = kMaxDimension;
-        int col_to_free = kMaxDimension;
-        double distance = std::sqrt( std::pow(row_to_free, 2) + std::pow(col_to_free, 2));
+        // scan for new mine position with least impact
+        int target_row = -1;
+        int target_col = -1;
+        std::tuple<int, int> target_stats(8,8);
 
         for(int row = 0; row < rows; ++row) {
             for(int col = 0; col < cols; ++col) {
 
-                // test if 1 adjacent mine
-                if(grid[row][col] != MINE) {
-                    int mine_row = 0;
-                    int mine_col = 0;
-                    if(CountAdjacentMines(rows, cols, row, col, grid, &mine_row, &mine_col) == 1) {
-                        row_to_free = mine_row;
-                        col_to_free = mine_col;
-                        distance = 0.0;
-                        found = true;
-                        break;
+                // count adjacent cells
+                if(grid[row][col] == FREE) {
+                    std::tuple<int, int> stats = CountAdjacent(rows, cols, row, col, grid);
+
+                    // if fewer adjacent free cells or more adjacent mine cells, set as target to mine
+                    if( std::get<0>(stats) < std::get<0>(target_stats) ||
+                        (std::get<0>(stats) == std::get<0>(target_stats) && std::get<1>(stats) > std::get<1>(target_stats)) ) {
+                        target_stats = stats;
+                        target_row = row;
+                        target_col = col;
                     }
                 }
-                // compute distance to mine and set to be freed if shorter
-                else if(grid[row][col] == MINE) {
-                    double new_distance = std::sqrt( std::pow(row, 2) + std::pow(col, 2));
-                    if(new_distance < distance) {
-                        row_to_free = row;
-                        col_to_free = col;
-                        distance = new_distance;
-                    }
-                }
-            }
 
-            // stop processing if row has started with a mine
-            if(grid[row][0] == MINE) {
-                break;
             }
-
-            // stop processing if found single adjacent mine cell
-            if(found) {
-                break;
-            }
-        }
-
-        // if
-        if(found) {
-            solvable = true;
-        } else {
-            solvable = false;
         }
 
         // set new free cell
-        grid[row_to_free][col_to_free] = FREE;
+        grid[target_row][target_col] = MINE;
 
     }
+
+    bool solvable = true;
+
+    if(rows*cols != mines+1) {
+        for(int row = 0; row < rows; ++row) {
+            for(int col = 0; col < cols; ++col) {
+                solvable = false;
+                for(int r = std::max(row-1,0); r <= std::min(row+1, rows-1); ++r) {
+                    for(int c = std::max(col-1,0); c <= std::min(col+1, cols-1); ++c) {
+                        if(grid[r][c] == FREE) {
+                            std::tuple<int, int> stats = CountAdjacent(rows, cols, r, c, grid);
+                            if(std::get<1>(stats) == 0) {
+                                solvable = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     return solvable;
 }
@@ -152,12 +140,13 @@ int main()
         line = ReadLine();
         line >> rows >> cols >> mines;
 
-        // initialize grid with mines
+        // initialize grid with free cells and clicked cell
         for(int row = 0; row < rows; ++row) {
             for(int col = 0; col < cols; ++col) {
-                grid[row][col] = MINE;
+                grid[row][col] = FREE;
             }
         }
+        grid[rows-1][cols-1] = CLICK;
 
         // solve puzzle
         bool result = SolvePuzzle(rows, cols, mines, grid);
