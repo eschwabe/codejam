@@ -74,37 +74,35 @@ void GeneratePuzzle(int mines, Puzzle& grid) {
     auto rows = static_cast<int>(grid.size());
     auto cols = static_cast<int>(grid[0].size());
 
+    int last_mine_row = 0;
+    int last_mine_col = 0;
+
+    int base_row = 0;
+    int base_col = 0;
+
     for(int m = 0; m < mines; ++m) {
 
-        // scan for new mine position with least impact
-        int target_row = -1;
-        int target_col = -1;
-        auto target_stats = std::make_tuple(9,9);
-
-        for(int row = 0; row < rows; ++row) {
-            for(int col = 0; col < cols; ++col) {
-
-                // count adjacent cells
-                if(grid[row][col] != MINE) {
-                    auto stats = CountAdjacent(row, col, grid);
-
-                    // if fewer adjacent free cells or equal free cells and more adjacent mine cells
-                    // set as target to mine
-                    if( std::get<0>(stats) < std::get<0>(target_stats) ||
-                        (std::get<0>(stats) == std::get<0>(target_stats) && 
-                         std::get<1>(stats) > std::get<1>(target_stats)) ) {
-                        target_stats = stats;
-                        target_row = row;
-                        target_col = col;
-                    }
-                }
-
+        if( rows-base_row > cols-base_col ) {
+            // traverse columns
+            PlaceMine(last_mine_row, last_mine_col, grid);
+            last_mine_col++;
+            if(last_mine_col >= cols) {
+                base_row++;
+                last_mine_row = base_row;
+                last_mine_col = base_col;
+            }
+        } else {
+            // traverse rows
+            PlaceMine(last_mine_row, last_mine_col, grid);
+            last_mine_row++;
+            if(last_mine_row >= rows) {
+                base_col++;
+                last_mine_row = base_row;
+                last_mine_col = base_col;
             }
         }
-
-        // set new free cell
-        PlaceMine(target_row, target_col, grid);
     }
+
 }
 
 // check if puzzle solvable in a single click
