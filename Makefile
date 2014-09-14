@@ -2,6 +2,7 @@
 
 PROGS =2014/qual-a
 PROGS+=2014/qual-b
+PROGS+=2014/qual-c
 
 CXX=g++
 CXXFLAGS=-Wall -Werror -std=c++11 -g -O0
